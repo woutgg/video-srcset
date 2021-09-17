@@ -14,22 +14,29 @@
 		}
 
 		// Pattern of a src set element
-		var regex = /^\s*(.+)\s+(\d+)([wh])?\s*$/;
+		var regex = /^\s*(.+)\s+((\d+)[wh]?|(\d+\/\d+)|(-))\s*$/;
 
 		/**
 		 * @param string def The srcset attribute value
-		 * @returns Array<{width:number, src:string}> List of source options - with their max width value
+		 * @returns Array<{src:string, width:number|undefined, ratio:number|undefined, isDefault:bool}>
+		 * 		 List of source options - with their max width or ratio value, and a flag marking any defaults
 		 */
 		function getSourceSets(def) {
 			var sources = [];
 			var parts = def.split(',');
+
 			for (var i in parts) {
 				var result;
 				if (result = parts[i].match(regex)) {
 					sources.push({
-						width: parseInt(result[2]),
 						src: result[1],
+						// condition: result[2],
+						width: result[3] !== undefined ? parseInt(result[3]) : undefined,
+						ratio: tryParseRatio(result[4]),
+						isDefault: result[5] === '-',
 					});
+				} else {
+					console.warn("invalid sourceset specification encountered: '" + parts[i] + "'");
 				}
 			}
 
@@ -37,13 +44,53 @@
 		}
 
 		/**
+		 * @param string spec The ratio string to parse (formatted as 'x/y')
+		 * @returns number|undefined
+		 */
+		function tryParseRatio(spec) {
+			if (typeof spec === 'string' || spec instanceof String) {
+				var parts = spec.split('/');
+
+				if (parts.length >= 2) {
+					var numerator = parseFloat(parts[0]);
+					var denominator = parseFloat(parts[1]);
+					return !isNaN(numerator) && !isNaN(denominator) ? numerator / denominator : undefined;
+				}
+			}
+
+			return undefined;
+		}
+
+		/**
 		 * @param srcsrt The definition of the srcset attribute
 		 * @param screenWidth The width of the container to find matching src for
 		 * @returns string The best matching video source
 		 */
-		function selectSource(srcsrt, screenWidth) {
+		function selectSource(srcsrt, screenWidth, screenRatio) {
 			var sources = getSourceSets(srcsrt);
+			var hasSizes = false, hasRatios = false;
+			var defaultSource = null;
 
+			for (var i = 0; i < sources.length; i++) {
+				hasSizes |= sources[i].width !== undefined;
+				hasRatios |= sources[i].ratio !== undefined;
+				if (sources[i].isDefault) defaultSource = sources[i].src;
+			}
+
+			if (hasSizes && hasRatios) {
+				console.warn('sourceset definition with both sizes and ratios encountered, using sizes');
+			}
+
+			var source = null;
+
+			if (hasSizes) source = selectSourceBySize(sources, screenWidth);
+			else source = selectSourceByRatio(sources, screenRatio);
+
+			return source !== null ? source : defaultSource;
+		}
+
+		// FIXME: this will never return null, hence a default will not be respected when using widths.
+		function selectSourceBySize(sources, screenWidth) {
 			var selectedDiff = null;
 			var source = null;
 
@@ -51,8 +98,30 @@
 				var candidate = sources[i];
 				var candidateDiff = candidate.width - screenWidth;
 
+				// Think of 'diff' as 'surplus'
 				if (source === null ||  // First One
 						(selectedDiff < 0 && candidateDiff >= 0) || // Got smaller - and then larger
+						(candidateDiff < 0 && candidateDiff > selectedDiff) ||
+						(candidateDiff >= 0 && candidateDiff < selectedDiff ) // Got one that match better
+				) {
+					selectedDiff = candidateDiff;
+					source = candidate.src;
+				}
+			}
+
+			return source;
+		}
+
+		function selectSourceByRatio(sources, screenRatio) {
+			var selectedDiff = null;
+			var source = null;
+
+			for (var i in sources) {
+				var candidate = sources[i];
+				var candidateDiff = candidate.ratio - screenRatio;
+
+				// Think of 'diff' as 'surplus'
+				if (((selectedDiff === null || selectedDiff < 0) && candidateDiff >= 0) || // Got smaller - and then larger
 						(candidateDiff < 0 && candidateDiff > selectedDiff) ||
 						(candidateDiff >= 0 && candidateDiff < selectedDiff ) // Got one that match better
 				) {
@@ -74,7 +143,8 @@
 
 					// check if srcset is not empty
 					if(srcset) {
-						var selectedSource = selectSource(srcset, window.innerWidth);
+						var ratio = window.innerWidth / window.innerHeight;
+						var selectedSource = selectSource(srcset, window.innerWidth, ratio);
 						// Don't reapply the same src (to prevent reloading of the same video if run in resize, etc...)
 						if(selectedSource !== element.src) {
 							element.src = selectedSource;
