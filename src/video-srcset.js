@@ -14,7 +14,7 @@
 		}
 
 		// Pattern of a src set element
-		var regex = /^\s*(.+)\s+((\d+)[wh]?|(\d+\/\d+)|(-))\s*$/;
+		var regex = /^\s*(.+)\s+((\d+)[h]?|(\d+\/\d+)|(-))\s*$/;
 
 		/**
 		 * @param string def The srcset attribute value
