@@ -242,7 +242,7 @@
 	if (typeof window.jQuery !== 'undefined') {
 		(function ($) {
 			$.fn.videoSrcset = function (options) {
-				return new videoSourceSet(options || {}, $(this).filter('video[srcset]'));
+				return new videoSourceSet(options || {}, $(this).filter('video[data-srcset]'));
 			}
 		})(window.jQuery);
 	}
