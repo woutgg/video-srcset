@@ -14,7 +14,9 @@
 		}
 
 		// Pattern of a src set element
-		var regex = /^\s*(.+)\s+((\d+)[h]?|(\d+\/\d+)|(-))\s*$/;
+		var regexRatio = /^\s*(.+)\s+((\d+)[h]?|(\d+\/\d+)|(-))\s*$/;
+    // Pattern of a src set element
+    var regexSize = /^\s*(.+)\s+(\d+)([wh])?\s*$/;
 
 		/**
 		 * @param string def The srcset attribute value
@@ -27,19 +29,28 @@
 
 			for (var i in parts) {
 				var result;
-				if (result = parts[i].match(regex)) {
-					sources.push({
-						src: result[1],
-						// condition: result[2],
-						width: result[3] !== undefined ? parseInt(result[3]) : undefined,
-						ratio: tryParseRatio(result[4]),
-						isDefault: result[5] === '-',
-					});
-				} else {
+				if (
+          result = parts[i].match(regexRatio)
+        ) {
+          sources.push({
+            src: result[1],
+            width: result[3] !== undefined ? parseInt(result[3]) : undefined,
+            ratio: tryParseRatio(result[4]),
+            isDefault: result[5] === '-',
+          });
+        } else if ( result = parts[i].match(regexSize) ) {
+          sources.push({
+            src: result[1],
+            width: parseInt(result[2]),
+            ratio: '',
+            isDefault: result[5] === '-',
+          });
+        } else {
 					console.warn("invalid sourceset specification encountered: '" + parts[i] + "'");
 				}
 			}
 
+      console.log(sources);
 			return sources;
 		}
 
@@ -115,6 +126,10 @@
 
 			var source = null;
 
+      console.log('SIZE');
+      console.log(hasSizes);
+      console.log('hasRatios');
+      console.log(hasRatios);
 			if (hasSizes) source = selectSourceBySize(sources, screenWidth);
 			else source = selectSourceByRatio(sources, screenRatio);
 
